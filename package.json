@@ -1,0 +1,19 @@
+{
+  "name": "NoteDownServer",
+  "description": "Note Taking App",
+  "version": "1.0.0",
+  "repository": {
+    "type": "heroku git",
+    "url": "undefined"
+  },
+  "main": "server.js",
+  "dependencies": {
+    "body-parser": "^1.16.0",
+    "express": "^4.14.1",
+    "morgan": "^1.8.0",
+    "path": "^0.12.7",
+    "socket.io": "^1.7.3"
+  },
+  "devDependencies": {},
+  "license": "MIT"
+}
