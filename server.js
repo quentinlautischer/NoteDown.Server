@@ -1,13 +1,14 @@
 var mongoose = require('mongoose');
-var Account = require('../shared/models/account')
-var Notes = require('../shared/models/notes')
-var Image = require('../shared/models/image')
-var Folder = require('../shared/models/folder')
-var Page = require('../shared/models/page')
+var Account = require('./models/account')
+var Notes = require('./models/notes')
+var Image = require('./models/image')
+var Folder = require('./models/folder')
+var Page = require('./models/page')
 
 const net  = require('net');
 
-mongoose.connect('mongodb://localhost/test');
+// mongoose.connect('mongodb://localhost/test');
+mongoose.connect('mongodb://quentin:Lalaman123@ds141950.mlab.com:41950/heroku_n55zw4d8');
 var db = mongoose.connection;
 
 // var HOST = '127.0.0.1';
