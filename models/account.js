@@ -9,7 +9,7 @@ const accountSchema = new mongoose.Schema({
   name: String,
   password: String,
   notes: NotesModel.schema
-});
+}, { timestamps: { createdAt: 'created_at' } });
 
 // create the model
 const accountModel = mongoose.model('Account', accountSchema);

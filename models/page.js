@@ -1,9 +1,12 @@
 const mongoose = require('mongoose'),
   Schema = mongoose.Schema;
 
+const ImageModel = require('./image')
+
 // create a schema
 const pageSchema = new mongoose.Schema({
-  content: String
+  content: String,
+  images: [ImageModel.schema]
 });
 
 // create the model

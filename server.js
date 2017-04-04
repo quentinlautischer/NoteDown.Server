@@ -11,11 +11,19 @@ const net  = require('net');
 mongoose.connect('mongodb://quentin:Lalaman123@ds141950.mlab.com:41950/heroku_n55zw4d8');
 var db = mongoose.connection;
 
-// var HOST = '127.0.0.1';
-var HOST = "localhost"; // allows me to test on android
+var redux = require('redux');
+var reducer = require('./serverReducer');
+
+
+const net  = require('net');
+
+var HOST = '127.0.0.1';
+// var HOST = "localhost"; // allows me to test on android
 var PORT = 3000;
 
 var DEBUG = false;
+
+const store = redux.createStore(reducer.serverReducer);
 
 /******************************************************************************/
 var express = require('express');
@@ -31,7 +39,6 @@ server.listen(PORT, HOST, () => console.log('listening on ' + HOST + ":" + PORT)
 // The event will be called when a client is connected.
 websocket.on('connection', (socket) => {
     console.log('A client just joined on', socket.id);
-
     socket.on('request-login', (data) => {
       loginRequest(socket, data);
     });
@@ -60,10 +67,19 @@ websocket.on('connection', (socket) => {
       photoPutRequest(socket, data);
     });
 
-});
+    socket.on('close', (data) => {
+      console.log(`A client just closed with socket id ${socket.id}`);
+      serverPrintState();
+      store.dispatch({type: 'REMOVE_ONLINE_USER', socketid: socket.id});
+      serverPrintState();
+    });
 
-websocket.on('close', (socket) => {
-  console.log('A client just closed on', socket.id);
+    socket.on('disconnect', (data) => {
+      console.log(`A client just disconnected with socket id ${socket.id}`);
+      serverPrintState();
+      store.dispatch({type: 'REMOVE_ONLINE_USER', socketid: socket.id});
+      serverPrintState();
+    });
 });
 
 db.on('error', console.error.bind(console, 'connection error:'));
@@ -75,6 +91,10 @@ serverPrint = function(title, callback) {
     console.log(`### ${title}\n`)
     callback();
     console.log(`#############################################`);
+}
+
+serverPrintState = function() {
+  console.log(`State: ${JSON.stringify(store.getState())}`)
 }
 
 /////////////////////////////////////////////
@@ -95,7 +115,7 @@ createNotesModel = function(userid) {
   var notes = new Notes({
     userid: userid,
     folders: [],
-    images: []
+    updatedAt: ""
   });
   return notes;
 }
@@ -111,17 +131,26 @@ printRegisteredUsers = function() {
   });
 }
 
+findUser = function(action) {
+  var onlineUsers = store.getState().onlineUsers;
+  console.log(`Online Users: ${JSON.stringify(onlineUsers)}`);
+  onlineUsers = onlineUsers.filter(function(user) {return user.platform == action.platform});
+  console.log(`Online Users (platform filter: ${action.platform}): ${JSON.stringify(onlineUsers)}`);
+  if (action.type == 'socket') {
+    onlineUsers = onlineUsers.filter(function(user) {return user.socketid == action.socket});
+    console.log(`Online Users (socket filter): ${JSON.stringify(onlineUsers)}`);
+  } else if (action.type == 'userid') {
+    onlineUsers = onlineUsers.filter(function(user) {return user.userid == action.userid});
+    console.log(`Online Users (user filter): ${JSON.stringify(onlineUsers)}`);
+  }
+  if (onlineUsers.length == 1) {
+    return onlineUsers[0];
+  } else {
+    return null;
+  }
+}
 loginRequest = function(socket, data) {
   console.log(`login-request from ${socket.id}; Username: ${data.username}; Password: ${data.password};`);
-
-  if (DEBUG) {
-    setTimeout(function() {
-      console.log("sending login response");
-      const event = {event: "request-login-response", data: {result: true, userid: "lautisch"}};
-      socket.emit('data', event);
-    }, 1);
-    return;
-  }
 
   Account.find({ email: data.username}, function (err, results) {
     if (err) {
@@ -133,6 +162,9 @@ loginRequest = function(socket, data) {
     if (results.length && results[0].password == data.password) {
       const event = {event: "request-login-response", data: {result: true, userid: results[0].email}};
       socket.emit('data', event);
+      serverPrintState();
+      store.dispatch({type: 'ADD_ONLINE_USER', userid: results[0].email, socketid: socket.id, platform: data.platform});
+      serverPrintState();
     } else {
       const event = {event: "request-login-response", data: {result: false, msg: "An account with that username and password does not exist"}};
       socket.emit('data', event);
@@ -143,15 +175,6 @@ loginRequest = function(socket, data) {
 
 signupRequest = function(socket, data) {
   console.log(`signup-request from ${socket}; Username: ${data.username} Password: ${data.password} Name: ${data.name}`);
-
-  if (DEBUG) {
-    setTimeout(function() {
-      console.log("sending signup response");
-      const event = {event: "request-signup-response", data: {result: true, userid: "lautisch"}};
-      socket.write(JSON.stringify(event));
-    }, 3000);
-    return;
-  }
 
   Account.find({ email: data.username}, function (err, results) {
     if (err) {
@@ -188,40 +211,6 @@ signupRequest = function(socket, data) {
 pullDataRequest = function(socket, data) {
   console.log(`pull-data-request from user: ${data.userid}`);
 
-  if (DEBUG) {
-    var notes = new Notes({
-      userid: "lautisch",
-      folders: [
-        new Folder({
-          name: "Folder 1",
-          pages: [
-            new Page({
-              content: "# Page 1 Content \n* Item 1\n* Item 2\n \n \n## Header 2 \n### Header 3\n#Header11\n"
-            }),
-            new Page({
-              content: "Page 2 Content"
-            }),
-            new Page({
-              content: "Page 3 Content"
-            })
-          ]
-        }),
-        new Folder({
-          name: "Folder 2",
-          pages: [
-            new Page({
-              content: "#H0\n#H1\n#H2\n#H3\n#H4\n#H5\n#H6\n#H7\n#H8\n#H9\n#H10\n#H11\n#H12\n#H13\n#H14\n#H15\n#H16\n#H17\n#H18\n#H19\n#H20\n#H21\n#H22\n#H23\n#H24\n#H25\n#H26\n#H27\n#H28\n#H29\n#H30\n#H31\n#H32\n#H33\n#H34\n#H35\n#H36\n#H37\n#H38\n#H39\n#H40\n#H41\n#H42\n#H43\n#H44\n#H45\n#H46\n#H47\n#H48\n#H49\n"
-            })
-          ]
-        }),
-      ],
-      images: [new Image()]
-    });
-    const event = {event: "request-pull-data-response", data: {result: true, notes: notes}};
-    socket.emit('data', event);
-    return;
-  }
-
   Account.find({ email: data.userid}, function (err, results) {
     if (err) {
       console.error(err);
@@ -240,20 +229,45 @@ pullDataRequest = function(socket, data) {
 }
 
 pushDataRequest = function(socket, data) {
-  console.log(`push-data-request from user: ${data.userid}`);
+  console.log(`push-data-request (forced push?: ${data.force_push}) from user: ${data.userid}`);
   console.log(`push-data-request data: ${data.notes}`);
-  console.log(`push-data-request folders: ${data.notes.folders}`);
 
-  Account.findOneAndUpdate({ email: data.userid }, { notes: data.notes }, function (err, results) {
+  Account.find({ email: data.userid}, function (err, results) {
     if (err) {
       console.error(err);
       socket.emit('server-error', { msg: 'Server Encountered An Error' })
+    }
+    if (results.length) {
+      console.log(results[0]);
+      console.log(`User Update Time: ${data.notes.updatedAt} Server Update Time: ${results[0].notes.updatedAt.toISOString()}`);
+      if (data.force_push || data.notes.updatedAt == results[0].notes.updatedAt.toISOString()) {
+        // No other push occurred.
+        console.log("no push conflict");
+        var date = new Date();
+        data.notes.updatedAt = date.toISOString();
+        Account.findOneAndUpdate({ email: data.userid }, { notes: data.notes }, function (err, results) {
+          if (err) {
+            console.error(err);
+            socket.emit('server-error', { msg: 'Server Encountered An Error' })
+          } else {
+            console.log("Push Data success");
+            const event = {event: "request-push-data-response", data: {result: true}};
+            socket.emit('data', event);
+          }
+        });
+      } else {
+        // Another push occurred user needs to choose.
+        console.log("Push Data Conflict");
+        const event = {event: "request-push-data-response", data: {result: false, type: 'push-conflict', msg: 'Push Conflict'}};
+        socket.emit('data', event);
+      }
+      
     } else {
-      const event = {event: "request-push-data-response", data: {result: true}};
+      const event = {event: "request-push-data-response", data: {result: false, type: 'error', msg: 'Could not find account'}};
       socket.emit('data', event);
-
     }
   });
+  
 }
 
 /////////////////////////////////////////////
@@ -268,7 +282,25 @@ photoSupplyRequest = function(socket, data) {
 }
 
 photoPutRequest = function(socket, data) {
-  console.log('photo-put-request ' + data.photo);
+  console.log(`photo-put-request from socket: ${socket.id}`);
+  var putUser = findUser({type: 'socket', socket: socket.id, platform: 'mobile'});
+  if (putUser) {
+    console.log(`Put-User found ${putUser.userid}`);
+  } else {
+    console.log('Put-User not found.');
+    return;
+  }
+
+  var supplyUser = findUser({type: 'userid', userid: putUser.userid, platform: 'desktop'});
+  if (supplyUser){
+    console.log(`Found supply user desktop socket`);
+
+    const event = {event: "photo-supply-request", data: {photo: data.photo}};
+    websocket.to(supplyUser.socketid).emit('data', event);
+    console.log('Emitted Photo data');
+  } else {
+    console.log(`Supply-User not found`);
+  }
 }
 
 console.log("server running");
